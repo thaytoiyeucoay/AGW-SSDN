@@ -1,0 +1,53 @@
+seed: 42
+class_names:
+  - background
+  - crop
+  - weed
+
+data:
+  train_images: datasets/mustard_greens/images/train
+  train_masks: datasets/mustard_greens/annotations/train
+  val_images: datasets/mustard_greens/images/test
+  val_masks: datasets/mustard_greens/annotations/test
+  patch_size: [512, 512]
+  weed_probability: 0.8
+  num_workers: 2
+  image_token: image
+  mask_token: annotation
+  mask_suffix: .png
+  # Fill these after the first training run prints the computed values.
+  # Evaluation and prediction require explicit values.
+  mean: null
+  std: null
+
+model:
+  in_channels: 3
+  num_classes: 3
+  use_auxiliary_heads: true
+  use_boundary_head: true
+
+training:
+  epochs: 50
+  batch_size: 4
+  accumulation_steps: 2
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  loss_switch_epoch: 15
+
+loss:
+  dice_weight: 0.7
+  cross_entropy_weight: 0.3
+  auxiliary_weights: [0.2, 0.3, 0.5]
+  boundary_weight: 0.5
+  decorrelation_weight: 0.1
+  boundary_bce_weight: 0.7
+  boundary_dice_weight: 0.3
+  boundary_positive_weight: 10.0
+
+inference:
+  patch_size: 512
+  stride: 384
+
+output:
+  directory: outputs
+  checkpoint: agw_ssdn_best.pt

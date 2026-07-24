@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agw-ssdn"
+version = "0.1.0"
+description = "Lightweight Gabor-guided spectral-spatial network for crop-weed segmentation"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Khanh Duy Bui" },
+  { name = "Huu Du Nguyen" },
+]
+dependencies = [
+  "numpy>=1.24",
+  "Pillow>=9.5",
+  "PyYAML>=6.0",
+  "torch>=2.1",
+  "torchvision>=0.16",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "ruff>=0.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
