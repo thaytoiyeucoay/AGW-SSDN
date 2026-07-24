@@ -118,10 +118,10 @@ The other four datasets evaluated in the paper are not distributed in this
 repository. Add their download links below, download them separately, and point
 a copied YAML configuration to their image and annotation directories.
 
-- **Peanut:** [dataset link](PEANUT_DATASET_LINK_PLACEHOLDER)
-- **BoniRob:** [dataset link](BONIROB_DATASET_LINK_PLACEHOLDER)
-- **Rice:** [dataset link](RICE_DATASET_LINK_PLACEHOLDER)
-- **Carrot:** [dataset link](CARROT_DATASET_LINK_PLACEHOLDER)
+- **Peanut:** [dataset link](https://github.com/ptdkhoa/Peanut-dataset)
+- **BoniRob:** [dataset link](https://www.ipb.uni-bonn.de/data/sugarbeets2016/)
+- **Rice:** [dataset link](https://figshare.com/articles/dataset/rice_seedlings_and_weeds/7488830)
+- **Carrot:** [dataset link](https://github.com/cwfid)
 
 Each external dataset must ultimately follow the same three-class RGB palette.
 Its directory names do not need to match the included dataset because all paths
@@ -226,14 +226,3 @@ If this repository supports your research, please cite:
   journal = {Computers and Electronics in Agriculture}
 }
 ```
-
-## Reproducibility notes
-
-- Auxiliary and boundary heads are evaluated only during training and are not
-  executed by the inference graph.
-- Sliding-window inference averages raw logits uniformly in overlap regions.
-- Images smaller than one patch are padded and cropped back to their original
-  dimensions.
-- This refactor uses a structured checkpoint format. Checkpoints saved directly
-  by the original monolithic `code_chuan.py` use different parameter names and
-  require conversion before loading here.
