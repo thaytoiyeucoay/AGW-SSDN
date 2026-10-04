@@ -56,7 +56,7 @@ def _lovasz_gradient(sorted_foreground: torch.Tensor) -> torch.Tensor:
     union = foreground_sum + (1 - sorted_foreground).cumsum(0)
     jaccard = 1 - intersection / union
     if pixels > 1:
-        jaccard[1:pixels] -= jaccard[:-1]
+        jaccard[1:pixels] = jaccard[1:pixels] - jaccard[:-1]
     return jaccard
 
 
