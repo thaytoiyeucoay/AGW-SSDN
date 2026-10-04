@@ -22,17 +22,25 @@ overlapping regions before selecting the final class.
 ```text
 agw-ssdn/
 ├── configs/
-│   └── default.yaml
+│   ├── default.yaml          # Mustard Greens (same as mustard_greens.yaml)
+│   ├── peanut.yaml
+│   ├── bonirob.yaml
+│   ├── rice.yaml
+│   ├── carrot.yaml
+│   └── mustard_greens.yaml
 ├── datasets/
 │   └── mustard_greens/
 │       ├── images/
 │       ├── annotations/
 │       ├── masks/
 │       └── split.csv
+├── splits/                   # fixed train/val/test lists and statistics
 ├── scripts/
 │   ├── train.py
 │   ├── evaluate.py
-│   └── predict.py
+│   ├── predict.py
+│   ├── make_split.py
+│   └── benchmark.py
 ├── src/agw_ssdn/
 │   ├── models/
 │   │   ├── layers.py
@@ -115,8 +123,11 @@ File-name tokens and paths can be changed in
 ### External benchmark datasets
 
 The other four datasets evaluated in the paper are not distributed in this
-repository. Add their download links below, download them separately, and point
-a copied YAML configuration to their image and annotation directories.
+repository. Download them from the links below and place each one under
+`datasets/<name>/images/{train,test}` and `datasets/<name>/annotations/{train,test}`
+(`<name>` = `peanut`, `bonirob`, `rice`, `carrot`), or edit the paths in
+`configs/<name>.yaml`. The train/test partition follows the one used in the
+paper; the image lists of every split are given in `splits/<name>.json`.
 
 - **Peanut:** [dataset link](https://github.com/ptdkhoa/Peanut-dataset)
 - **BoniRob:** [dataset link](https://www.ipb.uni-bonn.de/data/sugarbeets2016/)
@@ -127,32 +138,53 @@ Each external dataset must ultimately follow the same three-class RGB palette.
 Its directory names do not need to match the included dataset because all paths
 and filename tokens are configurable.
 
-## Configuration
+## Experimental protocol
 
-The default experiment reproduces the protocol described in the manuscript:
+The per-dataset configurations reproduce the protocol described in the
+manuscript:
 
-- training patches: `512 x 512`;
-- weed-biased patch probability: `0.8`;
-- AdamW, learning rate `1e-3`, weight decay `1e-4`;
-- batch size `4` with two-step gradient accumulation;
-- Dice-CE for epochs 1-15, then symmetric Lovasz-Softmax;
-- original-resolution sliding-window evaluation with stride `384`.
+- **Splits:** 20% of the images in each original training folder are held out
+  for validation (random seed `42`); the original test folder is unchanged.
+  The exact image lists are stored in `splits/<dataset>.json` and read through
+  `data.split_file`.
+- **Checkpoint selection:** the checkpoint with the highest validation mIoU is
+  kept; the test set is evaluated once with that checkpoint after training.
+- **Preprocessing:** RGB normalization statistics and median-frequency class
+  weights are computed on the training subset only (validation images
+  excluded). The resulting values are also listed in each split file.
+- **Patch sampling:** random `512 x 512` training patches; with probability
+  `0.8` the patch is centred near a randomly chosen weed pixel.
+- **Optimization:** AdamW, learning rate `1e-3`, weight decay `1e-4`, cosine
+  annealing over 50 epochs, batch size `4` with two-step gradient
+  accumulation (effective batch size 8), seed `42`.
+- **Loss:** Dice-CE for epochs 1-15, then symmetric Lovasz-Softmax, plus the
+  auxiliary, boundary, and feature-decorrelation terms (weights in
+  `configs/*.yaml`).
+- **Inference:** validation and test images are processed at native
+  resolution with `512 x 512` sliding windows, stride `384`, and logit
+  averaging over overlapping regions.
 
-On the first training run, RGB mean and standard deviation are calculated from
-the training images. The resolved configuration, including these values, is
-saved as `outputs/resolved_config.yaml`. Use that file for standalone evaluation
-or prediction so preprocessing remains reproducible.
+A split file can be regenerated from a local copy of a dataset with:
+
+```bash
+python scripts/make_split.py --config configs/peanut.yaml --output splits/peanut.json
+```
+
+During training, the resolved configuration, including the normalization
+statistics, is saved as `outputs/<dataset>/resolved_config.yaml`. Use that file
+for standalone evaluation or prediction so preprocessing remains reproducible.
 
 ## Training
 
 Run commands from the repository root:
 
 ```bash
-python scripts/train.py --config configs/default.yaml --device cuda
+python scripts/train.py --config configs/peanut.yaml --device cuda
 ```
 
-The best validation checkpoint is written to
-`outputs/agw_ssdn_best.pt`. It contains the model, optimizer, scheduler, epoch,
+Replace `peanut` with `bonirob`, `rice`, `carrot`, or `mustard_greens`. The
+best validation checkpoint is written to
+`outputs/<dataset>/agw_ssdn_best.pt`. It contains the model, optimizer, scheduler, epoch,
 best mIoU, and the complete experiment configuration.
 
 ## Evaluation
@@ -162,14 +194,46 @@ per DataLoader batch:
 
 ```bash
 python scripts/evaluate.py \
-  --config outputs/resolved_config.yaml \
-  --checkpoint outputs/agw_ssdn_best.pt \
+  --config outputs/peanut/resolved_config.yaml \
+  --checkpoint outputs/peanut/agw_ssdn_best.pt \
   --device cuda \
-  --output outputs/test_metrics.json
+  --output outputs/peanut/test_metrics.json
 ```
 
 The command reports pixel accuracy, per-class accuracy, per-class IoU, and
 mIoU.
+
+## Inference cost
+
+```bash
+pip install fvcore   # optional, needed for MACs
+python scripts/benchmark.py --device cuda
+```
+
+The script reports parameters, MACs, peak GPU memory, and latency/FPS for one
+`512 x 512` patch with batch size 1, and the latency of full sliding-window
+inference at the native image size of each dataset. Auxiliary and boundary
+heads are removed, so the measured graph is the deployed model.
+
+## Baselines
+
+The baselines were trained and evaluated with the same splits, patch
+sampling, optimizer, learning-rate schedule, effective batch size of 8
+(DMSCN: batch 2 with four-step accumulation because of GPU memory), and
+sliding-window evaluation as AGW-SSDN, using median-frequency weighted
+Dice-CE for all 50 epochs.
+
+| Model | Source | Backbone / initialization |
+|---|---|---|
+| FCN | [torchvision](https://github.com/pytorch/vision) `fcn_resnet50` | ResNet-50, COCO |
+| U-Net | [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch) | ResNet-34, ImageNet |
+| PSPNet | [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch) | ResNet-50, ImageNet |
+| DeepLabV3+ | [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch) | ResNet-50, ImageNet |
+| SegFormer-B2 | [Hugging Face Transformers](https://huggingface.co/nvidia/segformer-b2-finetuned-ade-512-512) | MiT-B2, ADE20K |
+| Swin-UNet | [segmentation_models.pytorch](https://github.com/qubvel-org/segmentation_models.pytorch) U-Net, `tu-swin_tiny_patch4_window7_224` encoder | Swin-T, ImageNet |
+| SegNet | Re-implemented following [Badrinarayanan et al. (2017)](https://doi.org/10.1109/TPAMI.2016.2644615) | random |
+| CED-Net | Re-implemented following Khan et al. (2020) | random |
+| DMSCN | Re-implemented following the original DMSCN paper | random |
 
 ## Prediction
 
