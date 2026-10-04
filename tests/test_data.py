@@ -32,3 +32,23 @@ def test_evaluation_dataset_preserves_original_resolution(tmp_path) -> None:
     assert image_tensor.shape == (3, height, width)
     assert mask_tensor.shape == (height, width)
     assert set(mask_tensor.unique().tolist()) == {0, 1, 2}
+
+
+def test_split_file_round_trip(tmp_path) -> None:
+    import json
+
+    from agw_ssdn.data import load_split, split_train_val
+
+    for index in range(10):
+        Image.fromarray(np.zeros((4, 4, 3), dtype=np.uint8)).save(
+            tmp_path / f"{index:03d}_image.png"
+        )
+    train, val = split_train_val(tmp_path, val_ratio=0.2, seed=42)
+    assert len(val) == 2 and not set(train) & set(val)
+    assert (train, val) == split_train_val(tmp_path, val_ratio=0.2, seed=42)
+
+    split_file = tmp_path / "split.json"
+    split_file.write_text(
+        json.dumps({"train": [p.name for p in train], "val": [p.name for p in val]})
+    )
+    assert load_split(split_file, tmp_path) == (train, val)

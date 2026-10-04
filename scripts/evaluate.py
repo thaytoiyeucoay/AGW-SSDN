@@ -36,8 +36,8 @@ def main() -> None:
         )
 
     dataset = PlantDataset(
-        data["val_images"],
-        data["val_masks"],
+        data["test_images"],
+        data["test_masks"],
         patch_size=tuple(data["patch_size"]),
         training=False,
         mean=data["mean"],

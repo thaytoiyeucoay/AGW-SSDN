@@ -5,12 +5,12 @@ class_names:
   - weed
 
 data:
-  train_images: datasets/mustard_greens/images/train
-  train_masks: datasets/mustard_greens/annotations/train
-  test_images: datasets/mustard_greens/images/test
-  test_masks: datasets/mustard_greens/annotations/test
+  train_images: datasets/carrot/images/train
+  train_masks: datasets/carrot/annotations/train
+  test_images: datasets/carrot/images/test
+  test_masks: datasets/carrot/annotations/test
   val_split: 0.2
-  split_file: splits/mustard_greens.json
+  split_file: splits/carrot.json
   patch_size: [512, 512]
   weed_probability: 0.8
   num_workers: 2
@@ -51,5 +51,5 @@ inference:
   stride: 384
 
 output:
-  directory: outputs
+  directory: outputs/carrot
   checkpoint: agw_ssdn_best.pt

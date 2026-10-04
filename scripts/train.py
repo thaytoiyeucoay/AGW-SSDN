@@ -9,7 +9,13 @@ import torch
 from torch.utils.data import DataLoader
 
 from agw_ssdn.config import load_config, save_config
-from agw_ssdn.data import PlantDataset, calculate_class_weights, calculate_mean_std
+from agw_ssdn.data import (
+    PlantDataset,
+    calculate_class_weights,
+    calculate_mean_std,
+    load_split,
+    split_train_val,
+)
 from agw_ssdn.engine import LossWeights, fit
 from agw_ssdn.losses import (
     BoundaryLoss,
@@ -39,6 +45,7 @@ def make_dataset(
     training: bool,
     mean: list[float],
     std: list[float],
+    image_paths: list[Path] | None = None,
 ) -> PlantDataset:
     data = config["data"]
     return PlantDataset(
@@ -52,6 +59,7 @@ def make_dataset(
         image_token=data["image_token"],
         mask_token=data["mask_token"],
         mask_suffix=data["mask_suffix"],
+        image_paths=image_paths,
     )
 
 
@@ -62,23 +70,35 @@ def main() -> None:
     device = resolve_device(args.device)
     data = config["data"]
 
+    # Validation images come from the original training folder; the test folder
+    # is never used during training or checkpoint selection.
+    if data.get("split_file"):
+        train_paths, val_paths = load_split(data["split_file"], data["train_images"])
+    else:
+        train_paths, val_paths = split_train_val(
+            data["train_images"],
+            val_ratio=float(data.get("val_split", 0.2)),
+            seed=int(config.get("seed", 42)),
+        )
+    print(f"Train/val split: {len(train_paths)} train, {len(val_paths)} val")
+
     mean = data.get("mean")
     std = data.get("std")
     if mean is None or std is None:
         print("Calculating training-set normalization statistics...")
-        mean, std = calculate_mean_std(data["train_images"])
+        mean, std = calculate_mean_std(data["train_images"], train_paths)
         config["data"]["mean"] = mean
         config["data"]["std"] = std
     print(f"Normalization mean={mean}, std={std}")
 
     train_dataset = make_dataset(
-        config, "train", training=True, mean=mean, std=std
+        config, "train", training=True, mean=mean, std=std, image_paths=train_paths
     )
     validation_dataset = make_dataset(
-        config, "val", training=False, mean=mean, std=std
+        config, "train", training=False, mean=mean, std=std, image_paths=val_paths
     )
     weight_dataset = make_dataset(
-        config, "train", training=False, mean=mean, std=std
+        config, "train", training=False, mean=mean, std=std, image_paths=train_paths
     )
 
     training = config["training"]

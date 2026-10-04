@@ -51,5 +51,5 @@ inference:
   stride: 384
 
 output:
-  directory: outputs
+  directory: outputs/mustard_greens
   checkpoint: agw_ssdn_best.pt

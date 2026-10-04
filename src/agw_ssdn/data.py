@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
 from typing import Sequence
@@ -59,6 +60,7 @@ class PlantDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         mask_token: str = "annotation",
         mask_suffix: str = ".png",
         palette: np.ndarray = DEFAULT_PALETTE,
+        image_paths: Sequence[Path] | None = None,
     ) -> None:
         self.image_dir = Path(image_dir)
         self.mask_dir = Path(mask_dir)
@@ -70,11 +72,14 @@ class PlantDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         self.mask_suffix = mask_suffix
         self.palette = palette
         self.normalize = transforms.Normalize(list(mean), list(std))
-        self.images = sorted(
-            path
-            for path in self.image_dir.iterdir()
-            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-        )
+        if image_paths is not None:
+            self.images = sorted(image_paths)
+        else:
+            self.images = sorted(
+                path
+                for path in self.image_dir.iterdir()
+                if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+            )
         if not self.images:
             raise FileNotFoundError(f"No images found in {self.image_dir}")
         self._weed_coordinates: dict[Path, np.ndarray] = {}
@@ -176,13 +181,54 @@ class PlantDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         return image_tensor, mask_tensor
 
 
-def calculate_mean_std(image_dir: str | Path) -> tuple[list[float], list[float]]:
-    """Calculate pixel-weighted RGB mean and standard deviation."""
+def split_train_val(
+    image_dir: str | Path,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> tuple[list[Path], list[Path]]:
+    """Deterministically split training images into train and val subsets."""
     paths = sorted(
         path
         for path in Path(image_dir).iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     )
+    if not paths:
+        raise FileNotFoundError(f"No images found in {image_dir}")
+    rng = random.Random(seed)
+    shuffled = list(paths)
+    rng.shuffle(shuffled)
+    val_count = max(1, int(len(shuffled) * val_ratio))
+    return sorted(shuffled[val_count:]), sorted(shuffled[:val_count])
+
+
+def load_split(
+    split_file: str | Path, train_dir: str | Path
+) -> tuple[list[Path], list[Path]]:
+    """Read the fixed train/val image lists written by ``scripts/make_split.py``."""
+    split = json.loads(Path(split_file).read_text(encoding="utf-8"))
+    train_dir = Path(train_dir)
+    return (
+        [train_dir / name for name in split["train"]],
+        [train_dir / name for name in split["val"]],
+    )
+
+
+def calculate_mean_std(
+    image_dir: str | Path, image_paths: Sequence[Path] | None = None
+) -> tuple[list[float], list[float]]:
+    """Calculate pixel-weighted RGB mean and standard deviation.
+
+    If ``image_paths`` is given, only those images are used (e.g. the training
+    subset after the train/val split); otherwise every image in ``image_dir``.
+    """
+    if image_paths is not None:
+        paths = sorted(image_paths)
+    else:
+        paths = sorted(
+            path
+            for path in Path(image_dir).iterdir()
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
     if not paths:
         raise FileNotFoundError(f"No images found in {image_dir}")
 
